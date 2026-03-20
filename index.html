@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园周边 200+ 美食地图</title>
+    <style>
+        :root {
+            --primary-color: #ff6b6b;
+            --secondary-color: #4ecdc4;
+            --accent-color: #ffeaa7;
+            --bg-color: #f1f2f6;
+            --text-color: #2f3542;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0; padding: 0;
+            color: var(--text-color);
+        }
+
+        /* 顶部标题 */
+        header {
+            background: linear-gradient(135deg, var(--primary-color), #ee5253);
+            color: white;
+            text-align: center;
+            padding: 3rem 1rem;
+            clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
+        }
+
+        /* 筛选与搜索板块 */
+        .search-container {
+            max-width: 900px;
+            margin: -30px auto 30px;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #747d8c;
+            text-transform: uppercase;
+        }
+
+        input, select {
+            padding: 12px 15px;
+            border: 2px solid #f1f2f6;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+            font-size: 1rem;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--secondary-color);
+        }
+
+        #searchInput {
+            flex-grow: 1;
+            min-width: 250px;
+        }
+
+        /* 餐厅卡片展示 */
+        .grid-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.08);
+        }
+
+        .card h3 { margin: 0 0 10px 0; color: var(--primary-color); }
+        
+        .badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: #f1f2f6;
+            margin-right: 5px;
+        }
+
+        /* 弹窗样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            justify-content: center; align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            width: 90%; max-width: 500px;
+            padding: 40px; border-radius: 20px;
+            position: relative;
+        }
+
+        .close {
+            position: absolute; top: 20px; right: 20px;
+            font-size: 2rem; cursor: pointer; color: #ccc;
+        }
+
+        .info-row { margin-bottom: 12px; border-bottom: 1px solid #f1f2f6; padding-bottom: 8px; }
+        .info-label { font-weight: bold; color: var(--primary-color); width: 80px; display: inline-block; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>校园周边美食导航</h1>
+    <p>搜寻超过 200 家宝藏店铺</p>
+</header>
+
+<div class="search-container">
+    <div class="filter-item" id="searchBox">
+        <label>关键词搜索</label>
+        <input type="text" id="searchInput" placeholder="搜索店名、推荐菜或关键词...">
+    </div>
+    
+    <div class="filter-item">
+        <label>预算</label>
+        <select id="budgetFilter">
+            <option value="all">不限预算</option>
+            <option value="low">💰 经济实惠</option>
+            <option value="medium">💰💰 中等消费</option>
+            <option value="high">💰💰💰 品质优选</option>
+        </select>
+    </div>
+
+    <div class="filter-item">
+        <label>菜系</label>
+        <select id="cuisineFilter">
+            <option value="all">全部菜系</option>
+        </select>
+    </div>
+</div>
+
+<div class="grid-container" id="cardGrid">
+    </div>
+
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <span class="close" id="closeBtn">&times;</span>
+        <h2 id="mName" style="color:var(--primary-color); margin-top:0;"></h2>
+        <div id="mDetails"></div>
+    </div>
+</div>
+
+<script>
+    let allData = [];
+
+    // 加载数据
+    async function init() {
+        try {
+            // 请确保你的文件名是 restaurants.json
+            const res = await fetch('restaurants.json'); 
+            allData = await res.json();
+            
+            setupCuisineOptions();
+            render(allData);
+            
+            // 绑定事件：任何一个输入改变都会触发过滤
+            document.getElementById('searchInput').addEventListener('input', filter);
+            document.getElementById('budgetFilter').addEventListener('change', filter);
+            document.getElementById('cuisineFilter').addEventListener('change', filter);
+        } catch (e) {
+            document.getElementById('cardGrid').innerHTML = "<h2>加载失败，请检查 restaurants.json 文件</h2>";
+        }
+    }
+
+    // 填充菜系下拉框
+    function setupCuisineOptions() {
+        const cuisines = [...new Set(allData.map(item => item.cuisine))];
+        const select = document.getElementById('cuisineFilter');
+        cuisines.sort().forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = opt.innerText = c;
+            select.appendChild(opt);
+        });
+    }
+
+    // 核心过滤逻辑
+    function filter() {
+        const keyword = document.getElementById('searchInput').value.toLowerCase();
+        const budget = document.getElementById('budgetFilter').value;
+        const cuisine = document.getElementById('cuisineFilter').value;
+
+        const filtered = allData.filter(item => {
+            const matchKeyword = item.name.toLowerCase().includes(keyword) || 
+                                 item.recommended.toLowerCase().includes(keyword);
+            const matchBudget = budget === 'all' || item.budget === budget;
+            const matchCuisine = cuisine === 'all' || item.cuisine === cuisine;
+            
+            return matchKeyword && matchBudget && matchCuisine;
+        });
+
+        render(filtered);
+    }
+
+    // 渲染卡片
+    function render(data) {
+        const grid = document.getElementById('cardGrid');
+        grid.innerHTML = data.length ? "" : "<p>没找到匹配的小店 T_T</p>";
+        
+        data.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.innerHTML = `
+                <h3>${item.name}</h3>
+                <div>
+                    <span class="badge">${item.cuisine}</span>
+                    <span class="badge">${item.budget.toUpperCase()}</span>
+                </div>
+                <p style="font-size:0.9rem; color:#666; margin-top:15px;">🌟 ${item.recommended}</p>
+            `;
+            div.onclick = () => showModal(item);
+            grid.appendChild(div);
+        });
+    }
+
+    // 显示详情
+    function showModal(item) {
+        document.getElementById('mName').innerText = item.name;
+        document.getElementById('mDetails').innerHTML = `
+            <div class="info-row"><span class="info-label">📍 地址</span>${item.address}</div>
+            <div class="info-row"><span class="info-label">📞 电话</span>${item.phone}</div>
+            <div class="info-row"><span class="info-label">🕒 营业</span>${item.hours}</div>
+            <div class="info-row"><span class="info-label">🍲 菜系</span>${item.cuisine}</div>
+            <div class="info-row"><span class="info-label">👍 推荐</span>${item.recommended}</div>
+        `;
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    // 关闭弹窗
+    document.getElementById('closeBtn').onclick = () => document.getElementById('modal').style.display = 'none';
+    window.onclick = (e) => { if(e.target.id === 'modal') document.getElementById('modal').style.display = 'none'; }
+
+    init();
+</script>
+
+</body>
+</html>
